@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Syllabus Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --primary-blue: #0C234B;
+            --secondary-red: #AB0520;
+            --accent-sky: #81D3EB;
+            --background: #ffffff;
+            --text: #000000;
+            --border: #e8f5e8;
+            --edit-bg: #f0f8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--background);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: var(--primary-blue);
+            color: white;
+            padding: 30px 0;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 8px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid var(--border);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: var(--primary-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1a3a5c;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--secondary-red);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #c41e3a;
+            transform: translateY(-2px);
+        }
+
+        .btn-accent {
+            background: var(--accent-sky);
+            color: var(--primary-blue);
+        }
+
+        .btn-accent:hover {
+            background: #6bc7e8;
+            transform: translateY(-2px);
+        }
+
+        .edit-mode-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--accent-sky);
+            color: var(--primary-blue);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .save-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            display: none;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .syllabus-content {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .section {
+            border-bottom: 3px solid var(--border);
+            padding: 30px;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section h2 {
+            color: var(--primary-blue);
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--accent-sky);
+        }
+
+        .section h3 {
+            color: var(--secondary-red);
+            font-size: 1.4em;
+            margin: 20px 0 15px 0;
+        }
+
+        .editable {
+            transition: all 0.3s ease;
+            border-radius: 4px;
+            padding: 8px;
+            margin: 4px 0;
+            min-height: 1.5em;
+        }
+
+        .editable:focus {
+            outline: 3px solid var(--accent-sky);
+            background: var(--edit-bg);
+            box-shadow: 0 0 10px rgba(129, 211, 235, 0.3);
+        }
+
+        .editable:hover:not(:focus) {
+            background: #f9f9f9;
+            cursor: text;
+        }
+
+        .edit-mode .editable {
+            background: var(--edit-bg);
+            border: 2px dashed var(--accent-sky);
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--primary-blue);
+            color: white;
+            font-weight: bold;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .info-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-sky);
+        }
+
+        .contact-info {
+            background: linear-gradient(135deg, var(--primary-blue), #1a3a5c);
+            color: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .contact-info h3 {
+            color: var(--accent-sky);
+            margin-bottom: 15px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-label {
+            display: inline-block;
+            padding: 12px 24px;
+            background: var(--accent-sky);
+            color: var(--primary-blue);
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .file-label:hover {
+            background: #6bc7e8;
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+
+        .grading-scale {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .grade-item {
+            background: var(--primary-blue);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .grade-points {
+            font-size: 1.2em;
+            margin-bottom: 5px;
+        }
+
+        .assignment-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .assignment-list li {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid var(--secondary-red);
+        }
+
+        .highlight {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="edit-mode-indicator" id="editModeIndicator">
+        🖊️ Edit Mode Active
+    </div>
+    
+    <div class="save-notification" id="saveNotification">
+        ✅ Saved!
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1 class="editable" data-field="course-title">BNAD 100 - Business Foundations</h1>
+            <div class="subtitle editable" data-field="course-subtitle">Section 1 - Spring 2025</div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-accent" onclick="toggleEditMode()">
+                <span id="editButtonText">🖊️ Enable Edit Mode</span>
+            </button>
+            <button class="btn btn-primary" onclick="generatePDF()">📄 Download PDF</button>
+            <button class="btn btn-secondary" onclick="exportData()">💾 Export Data</button>
+            <label for="importFile" class="file-label">📁 Import Data</label>
+            <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
+        </div>
+
+        <div class="syllabus-content" id="syllabusContent">
+            <div class="section">
+                <h2>Instructor Information</h2>
+                <div class="contact-info">
+                    <h3>Lead Instructor</h3>
+                    <p class="editable" data-field="instructor-name">Marisa Allen</p>
+                    <p class="editable" data-field="instructor-email">mcallen@arizona.edu</p>
+                    <p class="editable" data-field="response-time">Response time: Within 24 hours (Monday-Friday)</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Class Meeting Information</h2>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h3>Section 1</h3>
+                        <p class="editable" data-field="class-time">Mondays 11:00 – 11:50am</p>
+                        <p class="editable" data-field="class-location">Social Sciences, Room 100</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>Office Hours</h3>
+                        <p class="editable" data-field="office-hours">By appointment</p>
+                        <p class="editable" data-field="office-contact">Email Marisa Allen to schedule</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Course Overview</h2>
+                <p class="editable" data-field="course-overview">The intent of this course is to expose students to the foundational concepts needed to begin the study of business. This course will introduce business industries and functional business areas that are relevant to Eller business students. The course will provide students with key vocabulary and a basic understanding of future Eller business courses, majors and related career fields.</p>
+            </div>
+
+            <div class="section">
+                <h2>Course Objectives</h2>
+                <div class="editable" data-field="course-objectives">
+                    <p>The objectives of this course are to:</p>
+                    <ol>
+                        <li>Provide students with exposure into the functional areas of business and how these areas relate to a company's financial statements.</li>
+                        <li>Introduce students to the language and acumen of business.</li>
+                        <li>Introduce global business concepts.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Learning Outcomes</h2>
+                <div class="editable" data-field="learning-outcomes">
+                    <p>Upon successful completion of this course, students should be able to:</p>
+                    <ol>
+                        <li>Understand basic business vocabulary and use that vocabulary in spoken and written form.</li>
+                        <li>Understand the basic elements of an income statement.</li>
+                        <li>Be prepared to enter future business courses with the background needed to be successful.</li>
+                        <li>Understand the basic organization of a corporation, the components of the industrial economy and the high-level functions within a typical business.</li>
+                        <li>Enhance your career readiness and understanding of the potential outcomes of several business careers.</li>
+                        <li>Pick your interest in an area of study.</li>
+                        <li>Understand basic personal finance concepts (budgeting, compounding, credit scores, debt management, investing, etc.).</li>
+                        <li>Understand the business model (revenue process) and key performance measures associated with various industries.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Course Calendar</h2>
+                <div class="table-container">
+                    <table id="courseCalendar">
+                        <thead>
+                            <tr>
+                                <th>Week</th>
+                                <th>Date</th>
+                                <th>Topic</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td class="editable" data-field="week-1">3</td><td class="editable" data-field="date-1">Jan 27</td><td class="editable" data-field="topic-1">Course Introduction & Syllabus</td></tr>
+                            <tr><td class="editable" data-field="week-2">4</td><td class="editable" data-field="date-2">Feb 3</td><td class="editable" data-field="topic-2">Accounting/Financial Statements & Decisions</td></tr>
+                            <tr><td class="editable" data-field="week-3">5</td><td class="editable" data-field="date-3">Feb 10</td><td class="editable" data-field="topic-3">Corporate Finance</td></tr>
+                            <tr><td class="editable" data-field="week-4">6</td><td class="editable" data-field="date-4">Feb 17</td><td class="editable" data-field="topic-4">Sales: Customer Business Development</td></tr>
+                            <tr><td class="editable" data-field="week-5">7</td><td class="editable" data-field="date-5">Feb 24</td><td class="editable" data-field="topic-5">US Retail Evolution (eCommerce trends)</td></tr>
+                            <tr><td class="editable" data-field="week-6">8</td><td class="editable" data-field="date-6">Mar 3</td><td class="editable" data-field="topic-6">Marketing: Demand Creation</td></tr>
+                            <tr><td class="editable" data-field="week-7">10</td><td class="editable" data-field="date-7">Mar 17</td><td class="editable" data-field="topic-7">Managing operations and logistics</td></tr>
+                            <tr><td class="editable" data-field="week-8">11</td><td class="editable" data-field="date-8">Mar 24</td><td class="editable" data-field="topic-8">Technology & Business</td></tr>
+                            <tr><td class="editable" data-field="week-9">12</td><td class="editable" data-field="date-9">Mar 31</td><td class="editable" data-field="topic-9">Business Consulting</td></tr>
+                            <tr><td class="editable" data-field="week-10">13</td><td class="editable" data-field="date-10">Apr 7</td><td class="editable" data-field="topic-10">Global Business</td></tr>
+                            <tr><td class="editable" data-field="week-11">14</td><td class="editable" data-field="date-11">Apr 14</td><td class="editable" data-field="topic-11">Personal Finance: Millionaire Mindset</td></tr>
+                            <tr><td class="editable" data-field="week-12">15</td><td class="editable" data-field="date-12">Apr 21</td><td class="editable" data-field="topic-12">Career Quest Preparation/Job Market</td></tr>
+                            <tr><td class="editable" data-field="week-13">17</td><td class="editable" data-field="date-13">May 5</td><td class="editable" data-field="topic-13">Eller Majors & Careers</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Grading</h2>
+                <div class="highlight">
+                    <h3>Grading Components</h3>
+                    <ul class="assignment-list">
+                        <li><strong>Attendance:</strong> <span class="editable" data-field="attendance-points">50 points</span></li>
+                        <li><strong>Weekly Quizzes:</strong> <span class="editable" data-field="quiz-points">110 points</span></li>
+                        <li><strong>Career Quest:</strong> <span class="editable" data-field="career-quest-points">40 points</span></li>
+                    </ul>
+                    <p><strong>Total Points: <span class="editable" data-field="total-points">200</span></strong></p>
+                </div>
+
+                <h3>Grading Scale</h3>
+                <div class="grading-scale">
+                    <div class="grade-item">
+                        <div class="grade-points">A</div>
+                        <div class="editable" data-field="grade-a">200-180</div>
+                    </div>
+                    <div class="grade-item">
+                        <div class="grade-points">B</div>
+                        <div class="editable" data-field="grade-b">179-160</div>
+                    </div>
+                    <div class="grade-item">
+                        <div class="grade-points">C</div>
+                        <div class="editable" data-field="grade-c">159-140</div>
+                    </div>
+                    <div class="grade-item">
+                        <div class="grade-points">D</div>
+                        <div class="editable" data-field="grade-d">139-120</div>
+                    </div>
+                    <div class="grade-item">
+                        <div class="grade-points">E</div>
+                        <div class="editable" data-field="grade-e">119-0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Important Information</h2>
+                
+                <h3>Career Quest Event</h3>
+                <div class="highlight">
+                    <p><strong>Date:</strong> <span class="editable" data-field="career-quest-date">Monday, April 28, 5-6pm (Arizona time)</span></p>
+                    <p class="editable" data-field="career-quest-description">Career Quest is an event exclusively for Eller first-year students in BNAD100 where you will have the opportunity to learn from business professionals and Eller Alumni. You will choose a session based on your business interests (sales, marketing, accounting, finance, technology, etc.).</p>
+                </div>
+
+                <h3>Required Technology</h3>
+                <div class="editable" data-field="technology-requirements">
+                    <p><strong>Top Hat:</strong> Required for class participation and attendance tracking. Available on mobile devices, computers, or via text message.</p>
+                    <p><strong>D2L:</strong> Course management system for materials, announcements, and quizzes.</p>
+                    <p><strong>No textbook required</strong></p>
+                </div>
+
+                <h3>Quiz Information</h3>
+                <div class="editable" data-field="quiz-information">
+                    <ul>
+                        <li>Weekly 10-point quizzes in D2L</li>
+                        <li>Open Thursday 6am, close Sunday 11:59pm</li>
+                        <li>One-hour time limit</li>
+                        <li>Open-book (lecture slides and notes allowed)</li>
+                        <li>Lowest two quiz scores dropped</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Course Policies</h2>
+                <div class="editable" data-field="course-policies">
+                    <h3>Attendance Policy</h3>
+                    <p>Class attendance is mandatory and tracked through Top Hat participation. You can miss up to 3 classes and still earn full attendance points (lowest 3 scores dropped).</p>
+
+                    <h3>Academic Integrity</h3>
+                    <p>All assignments must comply with the University of Arizona Code of Academic Integrity. Cheating will result in penalties up to and including course failure or university expulsion.</p>
+
+                    <h3>Accommodations</h3>
+                    <p>Students with disabilities should contact the Disability Resource Center (520-621-3268) to establish reasonable accommodations.</p>
+
+                    <h3>Health & Safety</h3>
+                    <p>If you feel sick, please stay home. Contact the instructor for any attendance concerns. Campus Health provides medical and mental health services (520-621-9202).</p>
+
+                    <h3>Organizational Culture</h3>
+                    <p>Students are expected to maintain professional behavior, including active participation, effective communication, problem-solving, and supporting diversity. Disruptive behavior will result in removal from class.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isEditMode = false;
+        let autoSaveTimeout;
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFromStorage();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Add event listeners to all editable elements
+            document.querySelectorAll('.editable').forEach(element => {
+                element.addEventListener('input', debounceAutoSave);
+                element.addEventListener('blur', saveToStorage);
+            });
+        }
+
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            const indicator = document.getElementById('editModeIndicator');
+            const button = document.getElementById('editButtonText');
+            const content = document.getElementById('syllabusContent');
+
+            if (isEditMode) {
+                indicator.style.display = 'block';
+                button.textContent = '🔒 Disable Edit Mode';
+                content.classList.add('edit-mode');
+                
+                // Enable contenteditable for all editable elements
+                document.querySelectorAll('.editable').forEach(element => {
+                    element.contentEditable = true;
+                });
+            } else {
+                indicator.style.display = 'none';
+                button.textContent = '🖊️ Enable Edit Mode';
+                content.classList.remove('edit-mode');
+                
+                // Disable contenteditable for all editable elements
+                document.querySelectorAll('.editable').forEach(element => {
+                    element.contentEditable = false;
+                });
+            }
+        }
+
+        function debounceAutoSave() {
+            clearTimeout(autoSaveTimeout);
+            autoSaveTimeout = setTimeout(saveToStorage, 1000);
+        }
+
+        function saveToStorage() {
+            try {
+                const data = {};
+                document.querySelectorAll('.editable[data-field]').forEach(element => {
+                    data[element.getAttribute('data-field')] = element.innerHTML;
+                });
+                
+                localStorage.setItem('syllabusData', JSON.stringify(data));
+                showNotification('✅ Saved!');
+            } catch (error) {
+                console.error('Error saving to storage:', error);
+                showNotification('❌ Save failed!');
+            }
+        }
+
+        function loadFromStorage() {
+            try {
+                const savedData = localStorage.getItem('syllabusData');
+                if (savedData) {
+                    const data = JSON.parse(savedData);
+                    
+                    Object.entries(data).forEach(([field, content]) => {
+                        const element = document.querySelector(`[data-field="${field}"]`);
+                        if (element) {
+                            element.innerHTML = content;
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading from storage:', error);
+            }
+        }
+
+        function showNotification(message) {
+            const notification = document.getElementById('saveNotification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 2000);
+        }
+
+        function generatePDF() {
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                let yPosition = 20;
+                const pageHeight = doc.internal.pageSize.height;
+                const margin = 20;
+                const maxWidth = doc.internal.pageSize.width - 2 * margin;
+
+                // Helper function to add text with word wrapping
+                function addText(text, fontSize = 12, isBold = false) {
+                    if (yPosition > pageHeight - 30) {
+                        doc.addPage();
+                        yPosition = 20;
+                    }
+                    
+                    doc.setFontSize(fontSize);
+                    doc.setFont(undefined, isBold ? 'bold' : 'normal');
+                    
+                    const lines = doc.splitTextToSize(text, maxWidth);
+                    lines.forEach(line => {
+                        if (yPosition > pageHeight - 30) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+                        doc.text(line, margin, yPosition);
+                        yPosition += fontSize * 0.5;
+                    });
+                    yPosition += 5;
+                }
+
+                // Header
+                doc.setFontSize(20);
+                doc.setFont(undefined, 'bold');
+                doc.text('University of Arizona - Eller College of Management', margin, yPosition);
+                yPosition += 15;
+
+                const courseTitle = document.querySelector('[data-field="course-title"]').textContent;
+                doc.text(courseTitle, margin, yPosition);
+                yPosition += 10;
+
+                const courseSubtitle = document.querySelector('[data-field="course-subtitle"]').textContent;
+                doc.setFontSize(14);
+                doc.text(courseSubtitle, margin, yPosition);
+                yPosition += 20;
+
+                // Instructor Information
+                addText('INSTRUCTOR INFORMATION', 16, true);
+                addText(`Instructor: ${document.querySelector('[data-field="instructor-name"]').textContent}`);
+                addText(`Email: ${document.querySelector('[data-field="instructor-email"]').textContent}`);
+                addText(`Response Time: ${document.querySelector('[data-field="response-time"]').textContent}`);
+                yPosition += 10;
+
+                // Class Information
+                addText('CLASS MEETING INFORMATION', 16, true);
+                addText(`Time: ${document.querySelector('[data-field="class-time"]').textContent}`);
+                addText(`Location: ${document.querySelector('[data-field="class-location"]').textContent}`);
+                addText(`Office Hours: ${document.querySelector('[data-field="office-hours"]').textContent}`);
+                yPosition += 10;
+
+                // Course Overview
+                addText('COURSE OVERVIEW', 16, true);
+                const overview = document.querySelector('[data-field="course-overview"]').textContent;
+                addText(overview);
+                yPosition += 10;
+
+                // Course Objectives
+                addText('COURSE OBJECTIVES', 16, true);
+                const objectives = document.querySelector('[data-field="course-objectives"]').textContent;
+                addText(objectives);
+                yPosition += 10;
+
+                // Learning Outcomes
+                addText('LEARNING OUTCOMES', 16, true);
+                const outcomes = document.querySelector('[data-field="learning-outcomes"]').textContent;
+                addText(outcomes);
+                yPosition += 10;
+
+                // Grading Information
+                addText('GRADING INFORMATION', 16, true);
+                addText(`Attendance: ${document.querySelector('[data-field="attendance-points"]').textContent}`);
+                addText(`Weekly Quizzes: ${document.querySelector('[data-field="quiz-points"]').textContent}`);
+                addText(`Career Quest: ${document.querySelector('[data-field="career-quest-points"]').textContent}`);
+                addText(`Total Points: ${document.querySelector('[data-field="total-points"]').textContent}`, 12, true);
+                yPosition += 10;
+
+                // Grading Scale
+                addText('GRADING SCALE', 14, true);
+                addText(`A: ${document.querySelector('[data-field="grade-a"]').textContent} points`);
+                addText(`B: ${document.querySelector('[data-field="grade-b"]').textContent} points`);
+                addText(`C: ${document.querySelector('[data-field="grade-c"]').textContent} points`);
+                addText(`D: ${document.querySelector('[data-field="grade-d"]').textContent} points`);
+                addText(`E: ${document.querySelector('[data-field="grade-e"]').textContent} points`);
+                yPosition += 10;
+
+                // Course Calendar
+                addText('COURSE CALENDAR', 16, true);
+                for (let i = 1; i <= 13; i++) {
+                    const week = document.querySelector(`[data-field="week-${i}"]`)?.textContent;
+                    const date = document.querySelector(`[data-field="date-${i}"]`)?.textContent;
